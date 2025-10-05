@@ -1,0 +1,1 @@
+{"error":"ElevenLabs error","status":400,"details":"{\"detail\":{\"status\":\"free_users_not_allowed\",\"message\":\"You need to be on the creator tier or above to use this voice.\"}}"}
