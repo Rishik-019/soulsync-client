@@ -74,7 +74,7 @@ export default function App() {
 
     try {
       // Call backend chat
-      const resp = await fetch("http://localhost:3001/chat", {
+      const resp = await fetch("https://soulsync-server.onrender.com", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
@@ -85,7 +85,7 @@ export default function App() {
 
       // Call backend TTS
       try {
-        const ttsResp = await fetch("http://localhost:3001/speak", {
+        const ttsResp = await fetch("https://soulsync-server.onrender.com", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: reply }),
