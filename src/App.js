@@ -6,10 +6,12 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [lastAIResponse, setLastAIResponse] = useState("");
 
-  // Handle sending a chat message
+  // Send message to backend
   const handleSend = async () => {
     if (!input.trim()) return;
+
     const userMessage = { role: "user", content: input };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
@@ -25,21 +27,26 @@ export default function App() {
       const data = await response.json();
       const aiMessage = { role: "assistant", content: data.reply || "No response" };
       setMessages((prev) => [...prev, aiMessage]);
+      setLastAIResponse(data.reply);
       setIsLoading(false);
-
-      // Make SoulSync speak using ElevenLabs
-      if (data.reply) {
-        await fetch(`${API_BASE}/speak`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: data.reply }),
-        });
-      }
-
     } catch (err) {
       console.error("Error sending message:", err);
       setIsLoading(false);
       setMessages((prev) => [...prev, { role: "assistant", content: "Error connecting to server." }]);
+    }
+  };
+
+  // Speak only when user clicks “Talk”
+  const handleTalk = async () => {
+    if (!lastAIResponse) return;
+    try {
+      await fetch(`${API_BASE}/speak`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: lastAIResponse }),
+      });
+    } catch (err) {
+      console.error("Error speaking:", err);
     }
   };
 
@@ -86,6 +93,12 @@ export default function App() {
             className="bg-purple-600 hover:bg-purple-700 transition text-white px-5 py-3 rounded-xl font-semibold"
           >
             Send
+          </button>
+          <button
+            onClick={handleTalk}
+            className="bg-indigo-600 hover:bg-indigo-700 transition text-white px-4 py-3 rounded-xl font-semibold"
+          >
+            🎙️ Talk
           </button>
         </div>
       </div>
