@@ -1,167 +1,98 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
+
+const API_BASE = process.env.REACT_APP_API_URL || "https://soulsync-server.onrender.com";
 
 export default function App() {
-  const [messages, setMessages] = useState([
-    { sender: "ai", text: "👋 Hi — I'm SoulSync. How are you feeling today?" },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [listening, setListening] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const recRef = useRef(null);
-  const msgsRef = useRef(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
-  }, [messages, loading]);
-
-  // 🎙 Speech Recognition
-  const startListening = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition not supported in this browser.");
-      return;
-    }
-    const r = new SpeechRecognition();
-    recRef.current = r;
-    r.lang = "en-US";
-    r.interimResults = false;
-    r.maxAlternatives = 1;
-    r.onstart = () => setListening(true);
-    r.onend = () => setListening(false);
-    r.onerror = (e) => {
-      console.error("Speech recognition error:", e);
-      setListening(false);
-    };
-    r.onresult = (ev) => {
-      const transcript = ev.results[0][0].transcript;
-      setInput(transcript);
-      handleSend(transcript); // auto-send after speech result
-    };
-    r.start();
-  };
-
-  const stopListening = () => {
-    if (recRef.current) {
-      try { recRef.current.stop(); } catch {}
-      recRef.current = null;
-      setListening(false);
-    }
-  };
-
-  // 🔊 Play audio blob or fallback to speechSynthesis
-  const playAudioBlobOrFallback = async (blob, fallbackText) => {
-    try {
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.onended = () => URL.revokeObjectURL(url);
-      await audio.play();
-    } catch (err) {
-      console.warn("Audio play failed, using speechSynthesis fallback:", err);
-      if (fallbackText) {
-        const u = new SpeechSynthesisUtterance(fallbackText);
-        window.speechSynthesis.speak(u);
-      }
-    }
-  };
-
-  // 📨 Send message
-  const handleSend = async (overrideText) => {
-    const text = overrideText !== undefined ? overrideText : input;
-    if (!text.trim()) return;
+  // Handle sending a chat message
+  const handleSend = async () => {
+    if (!input.trim()) return;
+    const userMessage = { role: "user", content: input };
+    setMessages((prev) => [...prev, userMessage]);
     setInput("");
-    setMessages((prev) => [...prev, { sender: "user", text }]);
-    setLoading(true);
+    setIsLoading(true);
 
     try {
-      // Call backend chat
-      const resp = await fetch("https://soulsync-server.onrender.com", {
+      const response = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: input }),
       });
-      const data = await resp.json();
-      const reply = data.reply || "Sorry, I couldn't respond.";
-      setMessages((prev) => [...prev, { sender: "ai", text: reply }]);
 
-      // Call backend TTS
-      try {
-        const ttsResp = await fetch("https://soulsync-server.onrender.com", {
+      const data = await response.json();
+      const aiMessage = { role: "assistant", content: data.reply || "No response" };
+      setMessages((prev) => [...prev, aiMessage]);
+      setIsLoading(false);
+
+      // Make SoulSync speak using ElevenLabs
+      if (data.reply) {
+        await fetch(`${API_BASE}/speak`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: reply }),
+          body: JSON.stringify({ text: data.reply }),
         });
-        if (!ttsResp.ok) throw new Error("TTS fetch failed");
-        const blob = await ttsResp.blob();
-        if (blob.type.startsWith("audio/")) {
-          await playAudioBlobOrFallback(blob, reply);
-        } else {
-          console.warn("TTS did not return audio, fallback.");
-          const u = new SpeechSynthesisUtterance(reply);
-          window.speechSynthesis.speak(u);
-        }
-      } catch (ttsErr) {
-        console.error("TTS error:", ttsErr);
-        const u = new SpeechSynthesisUtterance(reply);
-        window.speechSynthesis.speak(u);
       }
+
     } catch (err) {
-      console.error("Chat error:", err);
-      setMessages((prev) => [...prev, { sender: "ai", text: "⚠️ Error connecting to server." }]);
+      console.error("Error sending message:", err);
+      setIsLoading(false);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Error connecting to server." }]);
     }
-    setLoading(false);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black text-white">
-      <header className="p-4 text-center font-bold text-2xl shadow-md bg-black/30 backdrop-blur-lg">
-        🌸 SoulSync
-      </header>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-900 via-indigo-900 to-gray-900 text-white px-4">
+      <div className="w-full max-w-3xl bg-white/10 backdrop-blur-lg rounded-3xl p-6 shadow-lg border border-white/20">
+        <h1 className="text-4xl font-bold text-center mb-6 text-purple-300">
+          SoulSync – Your AI Therapist
+        </h1>
 
-      <main ref={msgsRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.sender === "user" ? "justify-end" : "justify-start"}`}>
+        <div className="h-96 overflow-y-auto p-4 mb-4 rounded-xl bg-black/30 border border-white/20 scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-transparent">
+          {messages.length === 0 && (
+            <p className="text-gray-400 text-center mt-20 italic">
+              Talk to SoulSync about how you feel 💬
+            </p>
+          )}
+          {messages.map((msg, idx) => (
             <div
-              className={`px-4 py-2 rounded-2xl max-w-[70%] shadow-md ${
-                m.sender === "user" ? "bg-indigo-500 text-white" : "bg-gray-800 text-gray-100"
+              key={idx}
+              className={`my-2 p-3 rounded-xl max-w-[80%] ${
+                msg.role === "user"
+                  ? "bg-purple-600 ml-auto text-right"
+                  : "bg-gray-700 text-left"
               }`}
             >
-              {m.text}
+              {msg.content}
             </div>
-          </div>
-        ))}
-        {loading && <div className="text-gray-400">SoulSync is typing...</div>}
-      </main>
+          ))}
+          {isLoading && <p className="text-gray-400 italic text-center">SoulSync is thinking...</p>}
+        </div>
 
-      <footer className="p-3 bg-black/40 backdrop-blur-lg flex items-center space-x-2">
-        <input
-          className="flex-1 rounded-xl px-4 py-2 text-black focus:outline-none"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type your message..."
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        />
-        <button
-          onClick={() => handleSend()}
-          className="px-4 py-2 bg-indigo-600 rounded-xl hover:bg-indigo-700 transition"
-        >
-          Send
-        </button>
-        {!listening ? (
+        <div className="flex gap-3">
+          <input
+            type="text"
+            className="flex-grow p-3 rounded-xl bg-black/50 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Type your thoughts..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+          />
           <button
-            onClick={startListening}
-            className="px-3 py-2 bg-green-600 rounded-xl hover:bg-green-700 transition"
+            onClick={handleSend}
+            disabled={isLoading}
+            className="bg-purple-600 hover:bg-purple-700 transition text-white px-5 py-3 rounded-xl font-semibold"
           >
-            🎤 Talk
+            Send
           </button>
-        ) : (
-          <button
-            onClick={stopListening}
-            className="px-3 py-2 bg-red-600 rounded-xl hover:bg-red-700 transition"
-          >
-            ⏹ Stop
-          </button>
-        )}
-      </footer>
+        </div>
+      </div>
+
+      <p className="text-sm text-gray-400 mt-6">
+        © 2025 SoulSync – AI Therapy with Empathy
+      </p>
     </div>
   );
 }
