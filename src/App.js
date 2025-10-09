@@ -1,98 +1,83 @@
 import React, { useState } from "react";
+import axios from "axios";
 
-const API_BASE = process.env.REACT_APP_API_URL || "https://soulsync-server.onrender.com";
-
-export default function App() {
+function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Handle sending a chat message
-  const handleSend = async () => {
+  const API_URL = "https://soulsync-server.onrender.com"; // 👈 your backend URL
+
+  const sendMessage = async () => {
     if (!input.trim()) return;
-    const userMessage = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages = [...messages, { sender: "You", text: input }];
+    setMessages(newMessages);
     setInput("");
-    setIsLoading(true);
 
     try {
-      const response = await fetch(`https://soulsync-server.onrender.com/chat`, {
+      const res = await axios.post(`${API_URL}/chat`, { message: input });
+      const reply = res.data.reply;
+      setMessages([...newMessages, { sender: "SoulSync", text: reply }]);
+    } catch {
+      setMessages([...newMessages, { sender: "SoulSync", text: "Error connecting to server." }]);
+    }
+  };
+
+  const speak = async (text) => {
+    setIsSpeaking(true);
+    try {
+      const res = await fetch(`${API_URL}/speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ text }),
       });
-
-      const data = await response.json();
-      const aiMessage = { role: "assistant", content: data.reply || "No response" };
-      setMessages((prev) => [...prev, aiMessage]);
-      setIsLoading(false);
-
-      // Make SoulSync speak using ElevenLabs
-      if (data.reply) {
-        await fetch(`https://soulsync-server.onrender.com/speak`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: data.reply }),
-        });
-      }
-
-    } catch (err) {
-      console.error("Error sending message:", err);
-      setIsLoading(false);
-      setMessages((prev) => [...prev, { role: "assistant", content: "Error connecting to server." }]);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+    } catch {
+      console.error("Speech error");
+    } finally {
+      setIsSpeaking(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-purple-900 via-indigo-900 to-gray-900 text-white px-4">
-      <div className="w-full max-w-3xl bg-white/10 backdrop-blur-lg rounded-3xl p-6 shadow-lg border border-white/20">
-        <h1 className="text-4xl font-bold text-center mb-6 text-purple-300">
-          SoulSync – Your AI Therapist
-        </h1>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-4">
+      <h1 className="text-3xl font-bold mb-6">SoulSync - Your AI Therapist</h1>
 
-        <div className="h-96 overflow-y-auto p-4 mb-4 rounded-xl bg-black/30 border border-white/20 scrollbar-thin scrollbar-thumb-purple-500 scrollbar-track-transparent">
-          {messages.length === 0 && (
-            <p className="text-gray-400 text-center mt-20 italic">
-              Talk to SoulSync about how you feel 💬
-            </p>
-          )}
-          {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`my-2 p-3 rounded-xl max-w-[80%] ${
-                msg.role === "user"
-                  ? "bg-purple-600 ml-auto text-right"
-                  : "bg-gray-700 text-left"
-              }`}
-            >
-              {msg.content}
-            </div>
-          ))}
-          {isLoading && <p className="text-gray-400 italic text-center">SoulSync is thinking...</p>}
-        </div>
-
-        <div className="flex gap-3">
-          <input
-            type="text"
-            className="flex-grow p-3 rounded-xl bg-black/50 border border-white/20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-            placeholder="Type your thoughts..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          />
-          <button
-            onClick={handleSend}
-            disabled={isLoading}
-            className="bg-purple-600 hover:bg-purple-700 transition text-white px-5 py-3 rounded-xl font-semibold"
-          >
-            Send
-          </button>
-        </div>
+      <div className="bg-gray-800 p-4 rounded-lg w-full max-w-md h-96 overflow-y-auto shadow-lg mb-4">
+        {messages.map((msg, i) => (
+          <div key={i} className={`my-2 ${msg.sender === "You" ? "text-right" : "text-left"}`}>
+            <strong className={msg.sender === "You" ? "text-blue-400" : "text-pink-400"}>
+              {msg.sender}:
+            </strong>{" "}
+            {msg.text}
+          </div>
+        ))}
       </div>
 
-      <p className="text-sm text-gray-400 mt-6">
-        © 2025 SoulSync – AI Therapy with Empathy
-      </p>
+      <div className="flex w-full max-w-md space-x-2">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          placeholder="Talk to SoulSync..."
+          className="flex-1 p-2 rounded-lg text-black"
+        />
+        <button onClick={sendMessage} className="bg-blue-500 px-4 py-2 rounded-lg hover:bg-blue-600">
+          Send
+        </button>
+        <button
+          onClick={() => speak(messages[messages.length - 1]?.text || "Hello!")}
+          disabled={isSpeaking}
+          className="bg-pink-500 px-4 py-2 rounded-lg hover:bg-pink-600"
+        >
+          {isSpeaking ? "..." : "Talk"}
+        </button>
+      </div>
     </div>
   );
 }
+
+export default App;
