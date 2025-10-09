@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API_BASE = process.env.REACT_APP_API_URL || "https://soulsync-server.onrender.com";
+const API_BASE = process.env.REACT_APP_API_URL || "https://soulsync-server.onrender.com/chat";
 
 export default function App() {
   const [messages, setMessages] = useState([]);
@@ -16,7 +16,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/chat`, {
+      const response = await fetch(`https://soulsync-server.onrender.com/speak`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: input }),
