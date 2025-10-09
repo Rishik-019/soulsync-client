@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API_BASE = process.env.REACT_APP_API_URL || "https://soulsync-server.onrender.com/chat";
+const API_BASE = process.env.REACT_APP_API_URL || "https://soulsync-server.onrender.com";
 
 export default function App() {
   const [messages, setMessages] = useState([]);
@@ -16,7 +16,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`https://soulsync-server.onrender.com/speak`, {
+      const response = await fetch(`https://soulsync-server.onrender.com/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: input }),
@@ -29,7 +29,7 @@ export default function App() {
 
       // Make SoulSync speak using ElevenLabs
       if (data.reply) {
-        await fetch(`${API_BASE}/speak`, {
+        await fetch(`https://soulsync-server.onrender.com/speak`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: data.reply }),
